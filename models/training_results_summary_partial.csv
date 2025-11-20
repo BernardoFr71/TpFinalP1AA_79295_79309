@@ -1,0 +1,4 @@
+name,rmse,r2,best_params,saved_to,cv_rmse_mean,cv_rmse_std
+DTree_best.joblib,,,,../models\DTree_best.joblib,,
+KNN_best.joblib,,,,../models\KNN_best.joblib,,
+Linear_best.joblib,,,,../models\Linear_best.joblib,,

@@ -1,2 +1,4 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+# Declare files to be handled as Git LFS objects
+*.zip filter=lfs diff=lfs merge=lfs -text
