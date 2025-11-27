@@ -266,7 +266,7 @@ Mais detalhes em: `part1_info/PART1_GUIA_RAPIDO.md`
 - **Alunos:** 79295, 79309
 - **Instituição:** Universidade do Algarve
 - **Curso:** Aprendizagem Automática
-- **Kaggle:** [Ver Submissão](https://www.kaggle.com/competitions/car-price-prediction)
+- **Kaggle:** [Ver Submissão](https://www.kaggle.com/competitions/25-26-lesti-u-alg-pt-preco-de-carros-usados/leaderboard)
 
 ---
 
