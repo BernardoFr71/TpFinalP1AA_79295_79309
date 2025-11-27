@@ -1,10 +1,3 @@
-Aqui tens um ficheiro `README.md` completo e profissional, formatado em Markdown.
-
-Podes criar um ficheiro chamado **`README.md`** na pasta do teu projeto e colar lá este conteúdo. Ele serve como documentação oficial do teu trabalho, explicando como instalar, configurar e executar cada fase.
-
------
-
-````markdown
 # Projeto de Aprendizagem Automática: Deteção de Língua Gestual (ASL)
 
 Este projeto implementa um sistema completo de Machine Learning para a deteção e classificação de caracteres da Língua Gestual Americana (ASL) em tempo real. O sistema é composto por um pipeline de extração de características (landmarks das mãos), treino de múltiplos modelos de classificação, uma API REST para servir o modelo e uma aplicação cliente para captura de vídeo.
@@ -182,6 +175,3 @@ py -3.10 client_app.py
 
 **Autor:** [Bernardo Freitas] - [79295]
 **Unidade Curricular:** Aprendizagem Automática
-
-```
-```

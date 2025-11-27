@@ -1,105 +1,112 @@
 # client_app.py
 import cv2
 import requests
-import json
-import time
 import numpy as np
 from hand_landmark_extractor import HandLandmarkExtractor
 
-# Configurações da API
-API_URL = "http://127.0.0.1:5000/predict"
+API_URL = "http://127.0.0.1:5002/predict" 
+WINDOW_NAME = "ASL Detector"
+CONFIDENCE_THRESHOLD = 0.5 
 
-# Configurações da Câmera
-WINDOW_NAME = "ASL Detector Client"
-FRAME_WIDTH = 640
-FRAME_HEIGHT = 480
+def process_landmarks_for_api(landmarks):
+    """
+    Aplica a mesma lógica do create_dataset: Relativo + Escala
+    input: ndarray (21, 3)
+    output: lista plana de 63 floats normalizados
+    """
+    # Converter para lista
+    if isinstance(landmarks, np.ndarray):
+        landmarks = landmarks.tolist()
+
+    # 1. Relativo ao Pulso
+    base_x, base_y, base_z = landmarks[0][0], landmarks[0][1], landmarks[0][2]
+    relative_list = []
+    for point in landmarks:
+        relative_list.append([
+            point[0] - base_x,
+            point[1] - base_y,
+            point[2] - base_z
+        ])
+    
+    # 2. Achatar
+    flat_list = [item for sublist in relative_list for item in sublist]
+    
+    # 3. Normalizar Escala (IMPORTANTE)
+    max_value = max(list(map(abs, flat_list)))
+    
+    # Evitar divisão por zero (caso raro de mão colapsada num ponto)
+    if max_value == 0: 
+        return flat_list
+
+    normalized_list = [n / max_value for n in flat_list]
+    return normalized_list
 
 def run_client():
-    # Inicializar Extrator
-    extractor = HandLandmarkExtractor(
-        static_image_mode=False,
-        max_num_hands=1,
-        min_detection_confidence=0.7,
-        min_tracking_confidence=0.5
-    )
-
+    extractor = HandLandmarkExtractor(static_image_mode=False, min_detection_confidence=0.7)
     cap = cv2.VideoCapture(0)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
-
-    prediction_text = "Wait..."
-    confidence_text = ""
     
-    # Controle de frequência de requisições (para não sobrecarregar)
-    last_req_time = 0
-    REQ_INTERVAL = 0.1 # Enviar a cada 100ms
+    pred_text = "..."
+    conf_text = ""
+    color = (200, 200, 200)
+    
+    print("Cliente iniciado. Pressione 'q' para sair.")
+    
+    while True:
+        ret, frame = cap.read()
+        if not ret: break
+        
+        # Espelhar imagem (opcional - remove se atrapalhar)
+        frame = cv2.flip(frame, 1)
 
-    print("Iniciando Cliente. Pressione 'q' para sair.")
+        hands_data = extractor.process_image_landmarks(frame)
 
-    try:
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            frame = cv2.flip(frame, 1) # Espelhar
+        if hands_data:
+            frame = extractor.draw_landmarks(frame, hands_data)
             
-            # 1. Extração de Landmarks
-            hands_data = extractor.process_image_landmarks(frame)
+            # Obter landmarks brutos (21, 3)
+            raw_landmarks = hands_data[0].get('landmarks_normalized')
             
-            # Desenhar landmarks
-            if hands_data:
-                frame = extractor.draw_landmarks(frame, hands_data)
+            # Processar com a nova matemática
+            final_data = process_landmarks_for_api(raw_landmarks)
+
+            try:
+                # Enviar para a API
+                res = requests.post(API_URL, json={'landmarks': final_data}, timeout=0.1)
                 
-                # Preparar dados para API
-                # Vamos pegar a primeira mão detetada
-                hand_info = hands_data[0]
-                landmarks = hand_info['landmarks_normalized'] # Shape (21, 3)
-                flat_landmarks = landmarks.flatten().tolist()
-                
-                # 2. Comunicação com API (Não bloqueante idealmente, mas simples aqui)
-                curr_time = time.time()
-                if curr_time - last_req_time > REQ_INTERVAL:
-                    try:
-                        payload = {'landmarks': flat_landmarks}
-                        response = requests.post(API_URL, json=payload, timeout=0.5)
-                        
-                        if response.status_code == 200:
-                            result = response.json()
-                            pred = result.get('prediction', '?')
-                            conf = result.get('confidence', 0.0)
-                            
-                            prediction_text = f"Letter: {pred}"
-                            confidence_text = f"Conf: {conf:.2f}"
-                        else:
-                            print("API Error:", response.status_code)
-                            
-                    except Exception as e:
-                        prediction_text = "API Offline"
-                        print(f"Connection error: {e}")
+                if res.status_code == 200:
+                    data = res.json()
+                    letter = data['class']
+                    confidence = data['confidence']
                     
-                    last_req_time = curr_time
-
-            # 3. Visualização / Feedback Visual
-            # Caixa de fundo para texto
-            cv2.rectangle(frame, (0, 0), (200, 80), (0, 0, 0), -1)
-            
-            color = (0, 255, 0) if "Wait" not in prediction_text and "Offline" not in prediction_text else (0, 0, 255)
-            
-            cv2.putText(frame, prediction_text, (10, 40), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
-            cv2.putText(frame, confidence_text, (10, 70), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (200, 200, 200), 1)
-
-            cv2.imshow(WINDOW_NAME, frame)
-            
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
+                    pred_text = f"Letra: {letter}"
+                    conf_text = f"Conf: {confidence:.2f}"
+                    
+                    if confidence > 0.8:
+                        color = (0, 255, 0) # Verde forte
+                    elif confidence > CONFIDENCE_THRESHOLD:
+                        color = (0, 255, 255) # Amarelo
+                    else:
+                        color = (0, 0, 255) # Vermelho
                 
-    finally:
-        cap.release()
-        extractor.close()
-        cv2.destroyAllWindows()
+            except requests.exceptions.ConnectionError:
+                pred_text = "API OFF"
+            except Exception:
+                pass
+        else:
+            pred_text = "Mao nao detetada"
+            conf_text = ""
+            color = (200, 200, 200)
+
+        # Desenhar Interface
+        cv2.rectangle(frame, (0, 0), (250, 80), (0, 0, 0), -1)
+        cv2.putText(frame, pred_text, (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+        cv2.putText(frame, conf_text, (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1)
+
+        cv2.imshow(WINDOW_NAME, frame)
+        if cv2.waitKey(1) & 0xFF == ord('q'): break
+
+    cap.release()
+    cv2.destroyAllWindows()
 
 if __name__ == "__main__":
     run_client()
