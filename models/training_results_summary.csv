@@ -1,2 +1,2 @@
 name,rmse,r2,best_params,cv_rmse_mean,cv_rmse_std,saved_to
-Linear,69844.41805019086,0.1227974160743146,{'model__fit_intercept': False},0.5189442497887605,0.005734187754404698,../models/Linear_best.joblib
+Linear,69628.00031047763,0.12822513918258138,{'model__alpha': 1.0},0.5100171980091954,0.005101555112331597,../models/Linear_best.joblib
