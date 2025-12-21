@@ -1,7 +1,0 @@
-name,rmse,r2,best_params,cv_rmse_mean,cv_rmse_std,saved_to
-RF,68534.79837187698,0.1553850294590683,"{'model__max_depth': 20, 'model__min_samples_leaf': 5, 'model__n_estimators': 500}",0.4958270082966036,0.0037872624230366,../models/RF_best.joblib
-Stacking,68654.69503953875,0.15242725904007903,"Ridge(alpha=1.0), 2 base learners",0.4897037028329165,0.004475798430090609,../models\Stacking_best.joblib
-XGB,68772.38887809555,0.1495186686515808,"{'model__learning_rate': 0.05, 'model__max_depth': 6, 'model__n_estimators': 500}",0.4912253533990892,0.0047371029162648,../models/XGB_best.joblib
-KNN,69091.80389766632,0.1416002955311822,"{'model__n_neighbors': 15, 'model__weights': 'uniform'}",0.5109545923237215,0.0048905068175853,../models/KNN_best.joblib
-DTree,69256.63749497633,0.1374996096438547,"{'model__max_depth': 10, 'model__min_samples_leaf': 10}",0.5098200870202296,0.0043944221098686,../models/DTree_best.joblib
-Linear,69844.51167163528,0.1227950644181538,{'model__fit_intercept': True},0.5188632539383922,0.0051600137665794,../models/Linear_best.joblib
