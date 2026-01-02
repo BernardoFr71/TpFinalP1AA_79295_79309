@@ -3,11 +3,13 @@ import os
 import cv2
 import pandas as pd
 import numpy as np
+import argparse
 from hand_landmark_extractor import HandLandmarkExtractor
 
 # Configurações
 DATASET_DIR = "dataset/SignAlphaSet"
 OUTPUT_CSV = "hand_landmarks_dataset.csv"
+OUTPUT_AUG_CSV = "hand_landmarks_augmented.csv"
 
 def process_landmarks(landmarks):
     """
@@ -41,7 +43,7 @@ def process_landmarks(landmarks):
     normalized_list = list(map(normalize, flat_list))
     return normalized_list
 
-def create_dataset():
+def create_dataset(output_csv=OUTPUT_CSV):
     extractor = HandLandmarkExtractor(static_image_mode=True, max_num_hands=1, min_detection_confidence=0.5)
     data_list = []
     
@@ -65,28 +67,57 @@ def create_dataset():
             hands_data = extractor.process_image_landmarks(image)
             
             if hands_data:
-                hand_info = hands_data[0] 
-                landmarks = hand_info['landmarks_normalized'] # ndarray (21, 3)
-                
-                # Converter para lista Python para facilitar manipulação
-                landmarks_list = landmarks.tolist()
-                
-                # --- NOVO PROCESSAMENTO ---
-                final_landmarks = process_landmarks(landmarks_list)
-                
-                row = [label] + final_landmarks
-                data_list.append(row)
+                    # se houver múltiplas mãos, ficar só com a primeira
+                    hand_info = hands_data[0]
+                    landmarks = hand_info.get('landmarks_normalized')  # ndarray (21, 3)
+                    handedness = hand_info.get('handedness', 'Unknown')
+
+                    # Converter para lista Python para facilitar manipulação
+                    landmarks_list = landmarks.tolist()
+
+                    # --- NOVO PROCESSAMENTO ---
+                    final_landmarks = process_landmarks(landmarks_list)
+
+                    # Incluir a indicação da mão (Left/Right) na segunda coluna
+                    row = [label, handedness] + final_landmarks
+                    data_list.append(row)
 
     extractor.close()
 
     # Criar colunas
-    cols = ['label']
+    cols = ['label', 'hand']
     for i in range(21):
         cols.extend([f"lm{i}_x", f"lm{i}_y", f"lm{i}_z"])
         
     df = pd.DataFrame(data_list, columns=cols)
-    df.to_csv(OUTPUT_CSV, index=False)
-    print(f"\nConcluído! Dataset salvo em {OUTPUT_CSV} com {len(df)} amostras.")
+    df.to_csv(output_csv, index=False)
+    print(f"\nConcluído! Dataset salvo em {output_csv} com {len(df)} amostras.")
+
+
+def create_and_maybe_augment(output_csv=OUTPUT_CSV, augment=False, augmented_output=OUTPUT_AUG_CSV, augment_classes=None, augment_n=1000):
+    # Cria o dataset base
+    create_dataset(output_csv=output_csv)
+
+    # Se pedido, chama o script de augmentação (importa a função main de augment_landmarks)
+    if augment:
+        try:
+            from augment_landmarks import main as augment_main
+        except Exception as e:
+            print(f"Erro ao importar augment_landmarks: {e}")
+            return
+
+        classes = augment_classes if augment_classes is not None else ['C','D','E']
+        print(f"A iniciar augmentação para classes: {classes} (adicionando {augment_n} por classe)...")
+        augment_main(input_csv=output_csv, output_csv=augmented_output, classes=classes, n_per_class=augment_n)
+        print(f"Augmentação concluída. Ficheiro aumentado: {augmented_output}")
 
 if __name__ == "__main__":
-    create_dataset()
+    parser = argparse.ArgumentParser(description='Criar dataset de landmarks a partir de imagens e opcionalmente augmentar')
+    parser.add_argument('--output', default=OUTPUT_CSV, help='CSV de saída base')
+    parser.add_argument('--augment', action='store_true', help='Gerar dataset augmentado chamando augment_landmarks')
+    parser.add_argument('--augmented-output', default=OUTPUT_AUG_CSV, help='CSV de saída aumentado')
+    parser.add_argument('--augment-classes', nargs='+', default=['C','D','E'], help='Classes alvo para augmentação')
+    parser.add_argument('--augment-n', type=int, default=1000, help='Número de amostras a adicionar por classe')
+    args = parser.parse_args()
+
+    create_and_maybe_augment(output_csv=args.output, augment=args.augment, augmented_output=args.augmented_output, augment_classes=args.augment_classes, augment_n=args.augment_n)

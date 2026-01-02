@@ -71,7 +71,7 @@ def run_client():
 
             try:
                 # Enviar para a API
-                res = requests.post(API_URL, json={'landmarks': final_data}, timeout=0.1)
+                res = requests.post(API_URL, json={'landmarks': final_data}, timeout=1.0)
                 
                 if res.status_code == 200:
                     data = res.json()
