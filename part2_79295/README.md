@@ -2,7 +2,7 @@
 
 Este projeto implementa um sistema completo de Machine Learning para a deteção e classificação de caracteres da Língua Gestual Americana (ASL) em tempo real. O sistema abrange desde o processamento de imagem e extração de características até à disponibilização do modelo via API e interface cliente.
 
-## 📋 Estrutura do Projeto
+## Estrutura do Projeto
 
 O projeto está organizado conforme as 4 fases do desenvolvimento:
 
@@ -22,7 +22,7 @@ O projeto está organizado conforme as 4 fases do desenvolvimento:
 
 ---
 
-## 🚀 Instalação e Configuração
+## Instalação e Configuração
 
 1.  **Pré-requisitos:** Certifique-se de que tem o Python (3.8+) instalado.
 2.  **Instalar Dependências:**
@@ -114,3 +114,4 @@ python client_app.py
 ## 👤 Autores
 
 Trabalho realizado no âmbito da Unidade Curricular de Aprendizagem Automática.
+

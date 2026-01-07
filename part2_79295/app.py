@@ -1,4 +1,4 @@
-import joblib  # <--- MUDANÇA IMPORTANTE: Usar joblib em vez de pickle
+import joblib 
 import numpy as np
 import os
 from flask import Flask, request, jsonify
@@ -11,7 +11,7 @@ MODEL_PATH = 'models/best_model.pkl'
 SCALER_PATH = 'models/scaler_hand_sign.pkl'
 ENCODER_PATH = 'models/label_encoder.pkl'
 
-print("🔄 A carregar artefactos com Joblib...")
+print("A carregar artefactos com Joblib...")
 
 try:
     # O joblib.load aceita o caminho do ficheiro diretamente (não precisa de 'with open')
@@ -19,14 +19,14 @@ try:
     scaler = joblib.load(SCALER_PATH)
     encoder = joblib.load(ENCODER_PATH)
         
-    print("✅ Artefactos carregados com sucesso!")
+    print("Artefactos carregados com sucesso!")
 
 except FileNotFoundError:
-    print(f"❌ Erro Crítico: Não foi possível encontrar os ficheiros em '{MODEL_PATH}'.")
+    print(f"Erro Crítico: Não foi possível encontrar os ficheiros em '{MODEL_PATH}'.")
     print("Certifique-se de que correu o notebook de treino e a pasta 'models' existe.")
     model, scaler, encoder = None, None, None
 except Exception as e:
-    print(f"❌ Erro ao carregar modelos: {e}")
+    print(f"Erro ao carregar modelos: {e}")
     model, scaler, encoder = None, None, None
 
 # --- 2. Rota de Previsão ---
