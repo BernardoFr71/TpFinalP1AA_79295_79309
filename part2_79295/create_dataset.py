@@ -1,123 +1,144 @@
-# create_dataset.py
 import os
 import cv2
 import pandas as pd
-import numpy as np
 import argparse
+import sys
+from tqdm import tqdm
 from hand_landmark_extractor import HandLandmarkExtractor
 
-# Configurações
+# Configurações Padrão
 DATASET_DIR = "dataset/SignAlphaSet"
 OUTPUT_CSV = "hand_landmarks_dataset.csv"
 OUTPUT_AUG_CSV = "hand_landmarks_augmented.csv"
 
-def process_landmarks(landmarks):
+def make_landmarks_relative(landmarks_list):
     """
-    1. Converte para coordenadas relativas ao pulso.
-    2. Normaliza a escala (divide pelo maior valor) para ficar entre -1 e 1.
+    Converte coordenadas absolutas para relativas ao pulso (Landmark 0).
+    Isso torna o modelo invariante à posição da mão na imagem.
+    
+    Args:
+        landmarks_list: Lista plana [x0, y0, z0, x1, y1, z1, ...]
+    Returns:
+        Lista com as mesmas dimensões, mas relativa ao primeiro ponto.
     """
-    # Copiar para não alterar o original
-    # Landmarks vem como lista de listas [[x,y,z], [x,y,z]...]
-    
-    # 1. Tornar relativo ao Pulso (Ponto 0)
-    base_x, base_y, base_z = landmarks[0][0], landmarks[0][1], landmarks[0][2]
+    if not landmarks_list or len(landmarks_list) < 3:
+        return landmarks_list
 
-    relative_list = []
-    for point in landmarks:
-        relative_list.append([
-            point[0] - base_x,
-            point[1] - base_y,
-            point[2] - base_z
-        ])
-    
-    # 2. Achatar a lista para (63 values)
-    flat_list = [item for sublist in relative_list for item in sublist]
-    
-    # 3. Normalizar pela escala (Máximo valor absoluto)
-    # Isto garante que o tamanho da mão não afeta a classificação
-    max_value = max(list(map(abs, flat_list)))
-    
-    def normalize(n):
-        return n / max_value
+    # O pulso é sempre os primeiros 3 valores (x, y, z)
+    base_x = landmarks_list[0]
+    base_y = landmarks_list[1]
+    base_z = landmarks_list[2]
 
-    normalized_list = list(map(normalize, flat_list))
-    return normalized_list
+    relative_landmarks = []
+    # Itera de 3 em 3 (x, y, z)
+    for i in range(0, len(landmarks_list), 3):
+        relative_landmarks.append(landmarks_list[i] - base_x)
+        relative_landmarks.append(landmarks_list[i+1] - base_y)
+        relative_landmarks.append(landmarks_list[i+2] - base_z)
 
-def create_dataset(output_csv=OUTPUT_CSV):
-    extractor = HandLandmarkExtractor(static_image_mode=True, max_num_hands=1, min_detection_confidence=0.5)
-    data_list = []
-    
-    if not os.path.exists(DATASET_DIR):
-        print(f"Erro: Diretoria {DATASET_DIR} não encontrada.")
+    return relative_landmarks
+
+def create_dataset(input_dir=DATASET_DIR, output_file=OUTPUT_CSV):
+    """
+    Percorre as imagens, extrai landmarks e salva num CSV.
+    """
+    if not os.path.exists(input_dir):
+        print(f"ERRO CRÍTICO: Diretoria '{input_dir}' não encontrada.")
         return
 
-    labels = sorted(os.listdir(DATASET_DIR))
-    print(f"A processar classes: {labels}")
+    # Inicializar Extrator (Modo estático = True para maior precisão em imagens isoladas)
+    extractor = HandLandmarkExtractor(static_image_mode=True, min_detection_confidence=0.5)
+    
+    data_list = []
+    
+    # Obter lista de classes (pastas)
+    labels = sorted([d for d in os.listdir(input_dir) if os.path.isdir(os.path.join(input_dir, d))])
+    print(f"Classes detetadas: {labels}")
+    print(f"A iniciar processamento de {len(labels)} classes...")
 
-    for label in labels:
-        class_dir = os.path.join(DATASET_DIR, label)
-        if not os.path.isdir(class_dir): continue
-            
-        print(f"--> A processar classe: {label}")
+    for label in tqdm(labels, desc="Processando Classes"):
+        class_dir = os.path.join(input_dir, label)
+        
         for img_name in os.listdir(class_dir):
             img_path = os.path.join(class_dir, img_name)
-            image = cv2.imread(img_path)
-            if image is None: continue
-                
-            hands_data = extractor.process_image_landmarks(image)
             
-            if hands_data:
-                    # se houver múltiplas mãos, ficar só com a primeira
-                    hand_info = hands_data[0]
-                    landmarks = hand_info.get('landmarks_normalized')  # ndarray (21, 3)
-                    handedness = hand_info.get('handedness', 'Unknown')
+            # Ler imagem
+            image = cv2.imread(img_path)
+            if image is None:
+                continue
+            
+            # Extrair Landmarks
+            results, landmarks = extractor.extract_landmarks(image)
+            
+            if landmarks and len(landmarks) == 63:
+                # 1. Obter Handedness (Esquerda/Direita)
+                hand_label = "Unknown"
+                if results.multi_handedness:
+                    # O Google inverte (Mirror), mas para treino consistente usamos o label do output
+                    hand_label = results.multi_handedness[0].classification[0].label
+                
+                # 2. Tornar coordenadas relativas ao pulso (Feature Engineering)
+                # Nota: Não fazemos normalização de escala (divisão pelo max) aqui,
+                # deixamos isso para o StandardScaler no treino (train_model.ipynb).
+                processed_landmarks = make_landmarks_relative(landmarks)
+                
+                # 3. Criar linha de dados
+                row = [label, hand_label] + processed_landmarks
+                data_list.append(row)
 
-                    # Converter para lista Python para facilitar manipulação
-                    landmarks_list = landmarks.tolist()
-
-                    # --- NOVO PROCESSAMENTO ---
-                    final_landmarks = process_landmarks(landmarks_list)
-
-                    # Incluir a indicação da mão (Left/Right) na segunda coluna
-                    row = [label, handedness] + final_landmarks
-                    data_list.append(row)
-
-    extractor.close()
-
-    # Criar colunas
+    # Criar DataFrame e salvar CSV
+    # Gerar nomes das colunas: x_0, y_0, z_0 ... x_20, y_20, z_20
     cols = ['label', 'hand']
     for i in range(21):
-        cols.extend([f"lm{i}_x", f"lm{i}_y", f"lm{i}_z"])
-        
+        cols.extend([f'x_{i}', f'y_{i}', f'z_{i}'])
+
     df = pd.DataFrame(data_list, columns=cols)
-    df.to_csv(output_csv, index=False)
-    print(f"\nConcluído! Dataset salvo em {output_csv} com {len(df)} amostras.")
+    df.to_csv(output_file, index=False)
+    
+    print(f"\n✅ Dataset criado com sucesso!")
+    print(f"📁 Ficheiro salvo em: {output_file}")
+    print(f"📊 Total de amostras: {len(df)}")
+    print(f"🔢 Dimensão das features: {len(cols)}")
 
-
-def create_and_maybe_augment(output_csv=OUTPUT_CSV, augment=False, augmented_output=OUTPUT_AUG_CSV, augment_classes=None, augment_n=1000):
-    # Cria o dataset base
-    create_dataset(output_csv=output_csv)
-
-    # Se pedido, chama o script de augmentação (importa a função main de augment_landmarks)
-    if augment:
-        try:
-            from augment_landmarks import main as augment_main
-        except Exception as e:
-            print(f"Erro ao importar augment_landmarks: {e}")
-            return
-
-        classes = augment_classes if augment_classes is not None else ['C','D','E']
-        print(f"A iniciar augmentação para classes: {classes} (adicionando {augment_n} por classe)...")
-        augment_main(input_csv=output_csv, output_csv=augmented_output, classes=classes, n_per_class=augment_n)
-        print(f"Augmentação concluída. Ficheiro aumentado: {augmented_output}")
+def augment_process(input_csv, output_aug_csv, classes, n_samples):
+    """
+    Função Wrapper para chamar o script de data augmentation.
+    """
+    try:
+        from augment_landmarks import main as augment_main
+        print(f"\n--- A iniciar Data Augmentation ---")
+        print(f"Classes alvo: {classes}")
+        print(f"Amostras a adicionar: {n_samples}")
+        
+        augment_main(
+            input_csv=input_csv, 
+            output_csv=output_aug_csv, 
+            classes=classes, 
+            n_per_class=n_samples
+        )
+        print(f"Augmentation concluída: {output_aug_csv}")
+    except ImportError:
+        print("AVISO: 'augment_landmarks.py' não encontrado. Augmentation ignorada.")
+    except Exception as e:
+        print(f"ERRO na Augmentation: {e}")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Criar dataset de landmarks a partir de imagens e opcionalmente augmentar')
-    parser.add_argument('--output', default=OUTPUT_CSV, help='CSV de saída base')
-    parser.add_argument('--augment', action='store_true', help='Gerar dataset augmentado chamando augment_landmarks')
-    parser.add_argument('--augmented-output', default=OUTPUT_AUG_CSV, help='CSV de saída aumentado')
-    parser.add_argument('--augment-classes', nargs='+', default=['C','D','E'], help='Classes alvo para augmentação')
-    parser.add_argument('--augment-n', type=int, default=1000, help='Número de amostras a adicionar por classe')
+    parser = argparse.ArgumentParser(description='Fase 1: Criar Dataset de Landmarks')
+    
+    parser.add_argument('--input', default=DATASET_DIR, help='Caminho da pasta do dataset original')
+    parser.add_argument('--output', default=OUTPUT_CSV, help='Caminho do ficheiro CSV de saída')
+    
+    # Argumentos de Augmentation (Opcionais)
+    parser.add_argument('--augment', action='store_true', help='Executar data augmentation após a criação')
+    parser.add_argument('--aug-output', default=OUTPUT_AUG_CSV, help='Caminho do CSV aumentado')
+    parser.add_argument('--aug-classes', nargs='+', default=['J', 'Z'], help='Classes para aumentar (ex: J Z)')
+    parser.add_argument('--aug-n', type=int, default=500, help='Número de amostras a adicionar por classe')
+
     args = parser.parse_args()
 
-    create_and_maybe_augment(output_csv=args.output, augment=args.augment, augmented_output=args.augmented_output, augment_classes=args.augment_classes, augment_n=args.augment_n)
+    # 1. Criar Dataset Base
+    create_dataset(input_dir=args.input, output_file=args.output)
+
+    # 2. Augmentation (se solicitado)
+    if args.augment:
+        augment_process(args.output, args.aug_output, args.aug_classes, args.aug_n)

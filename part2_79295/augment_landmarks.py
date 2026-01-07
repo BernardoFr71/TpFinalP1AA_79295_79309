@@ -1,11 +1,3 @@
-"""augment_landmarks.py
-Script para aumentar o dataset de landmarks gerado por create_dataset.py.
-Gera amostras sintéticas por pequenas rotações, escalas e ruído gaussiano.
-
-Uso:
-python augment_landmarks.py --input hand_landmarks_dataset.csv --output hand_landmarks_augmented.csv --classes C D E --n_per_class 1000
-
-"""
 import argparse
 import pandas as pd
 import numpy as np
