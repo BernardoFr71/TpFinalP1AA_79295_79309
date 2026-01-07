@@ -2,87 +2,131 @@ import argparse
 import pandas as pd
 import numpy as np
 import os
+from tqdm import tqdm
 
-
-def augment_sample(flat_landmarks, n_aug=1, rot_deg_range=15, scale_range=(0.95,1.05), noise_std=0.02):
-    """Gera n_aug amostras a partir de um vetor de 63 valores.
-    flat_landmarks: list ou np.array shape (63,)
-    Retorna lista de arrays (63,)
+def augment_sample(flat_landmarks, rot_deg_range=15, scale_range=(0.9, 1.1), noise_std=0.02):
     """
-    arr = np.array(flat_landmarks).reshape(21,3)
-    aug_list = []
-    for _ in range(n_aug):
-        # Rotação em torno do pulso (origem), aplicar a x,y
-        angle = np.deg2rad(np.random.uniform(-rot_deg_range, rot_deg_range))
-        c, s = np.cos(angle), np.sin(angle)
-        R = np.array([[c, -s],[s, c]])
-        xy = arr[:, :2]
-        xy_rot = xy.dot(R.T)
-        # Escala
-        scale = np.random.uniform(scale_range[0], scale_range[1])
-        xy_rot = xy_rot * scale
-        # z: aplicar pequena escala e ruído
-        z = arr[:,2] * scale + np.random.normal(0, noise_std, size=(21,))
-        # adicionar ruído gaussiano a x,y
-        xy_rot += np.random.normal(0, noise_std, size=xy_rot.shape)
-        new_arr = np.hstack([xy_rot, z.reshape(-1,1)])
-        aug_list.append(new_arr.flatten())
-    return aug_list
+    Gera uma variação sintética de uma amostra de landmarks.
+    Aplica: Rotação (Eixo Z), Escala e Ruído Gaussiano.
+    """
+    # 1. Reconstruir estrutura (21 pontos, 3 coordenadas)
+    # Garante que é float para permitir operações matemáticas
+    data = np.array(flat_landmarks, dtype=float).reshape(-1, 3)
 
+    # 2. Rotação (Simular inclinação da mão no plano da câmara/Eixo Z)
+    # Como os dados são relativos ao pulso (0,0,0), rodamos em torno da origem.
+    theta = np.deg2rad(np.random.uniform(-rot_deg_range, rot_deg_range))
+    c, s = np.cos(theta), np.sin(theta)
+    
+    # Matriz de rotação em torno de Z
+    rotation_matrix = np.array([
+        [c, -s, 0],
+        [s,  c, 0],
+        [0,  0, 1]
+    ])
+    
+    # Aplicar rotação (dot product)
+    data = np.dot(data, rotation_matrix)
+
+    # 3. Escala (Simular mão maior/menor ou mais perto/longe)
+    scale = np.random.uniform(scale_range[0], scale_range[1])
+    data = data * scale
+
+    # 4. Ruído (Simular imperfeições do sensor/tremor)
+    noise = np.random.normal(0, noise_std, data.shape)
+    data = data + noise
+
+    return data.flatten()
 
 def main(input_csv, output_csv, classes, n_per_class):
+    if not os.path.exists(input_csv):
+        print(f"ERRO: Ficheiro de entrada '{input_csv}' não encontrado.")
+        return
+
+    print(f"A carregar dataset original: {input_csv}...")
     df = pd.read_csv(input_csv)
-    # Columns: label, lm0_x, lm0_y, lm0_z, ..., lm20_z
+
+    # Validação de Colunas Obrigatórias
     if 'label' not in df.columns:
-        raise ValueError('input CSV must have column label')
-    os.makedirs(os.path.dirname(output_csv) or '.', exist_ok=True)
+        raise ValueError("O CSV de entrada tem de ter a coluna 'label'.")
 
-    out_rows = []
-    # Copy original rows (preserve 'hand' column if present)
-    for _, row in df.iterrows():
-        out_rows.append(row.values.tolist())
+    # Identificar colunas de features (todas exceto label e hand)
+    # Isto garante compatibilidade com x_0, y_0, z_0...
+    non_feature_cols = ['label', 'hand']
+    feature_cols = [c for c in df.columns if c not in non_feature_cols]
+    
+    if len(feature_cols) != 63:
+        print(f"AVISO: Esperava 63 colunas de features, encontrei {len(feature_cols)}.")
 
-    # For each target class, generate augmented samples until reach n_per_class additional samples
-    for cls in classes:
-        cls_rows = df[df['label'] == cls]
-        if cls_rows.empty:
-            print(f'Warning: classe {cls} não encontrada no dataset original')
+    # Preparar lista de dados finais (começa com cópia dos originais)
+    final_data = df.to_dict('records')
+    
+    # Se classes não forem especificadas, aumentar todas
+    if not classes:
+        classes = df['label'].unique().tolist()
+        print("Nenhuma classe especificada. A aumentar TODAS as classes.")
+
+    print(f"\n--- Iniciar Data Augmentation ---")
+    print(f"Alvo: Adicionar {n_per_class} amostras por classe: {classes}")
+
+    for cls in tqdm(classes, desc="Processando Classes"):
+        # Filtrar dados da classe atual
+        cls_df = df[df['label'] == cls]
+        
+        if cls_df.empty:
+            print(f"Aviso: Classe '{cls}' não existe no dataset original. Ignorada.")
             continue
-        existing = cls_rows.values.tolist()
-        current_aug = 0
-        idx = 0
-        print(f'Augmenting class {cls}: existing {len(existing)} samples -> adding {n_per_class} samples')
-        while current_aug < n_per_class:
-            sample = existing[idx % len(existing)]
-            # Detect if 'hand' column exists (label, hand, features...) or not (label, features...)
-            if 'hand' in df.columns:
-                label = sample[0]
-                hand = sample[1]
-                flat = sample[2:]
-                aug = augment_sample(flat, n_aug=1)[0]
-                out_rows.append([label, hand] + aug.tolist())
-            else:
-                label = sample[0]
-                flat = sample[1:]
-                aug = augment_sample(flat, n_aug=1)[0]
-                out_rows.append([label] + aug.tolist())
-            current_aug += 1
-            idx += 1
-    # Criar DataFrame (preservar coluna 'hand' se existia no input)
-    if 'hand' in df.columns:
-        cols = ['label', 'hand'] + [f'lm{i}_{axis}' for i in range(21) for axis in ['x','y','z']]
-    else:
-        cols = ['label'] + [f'lm{i}_{axis}' for i in range(21) for axis in ['x','y','z']]
-    df_out = pd.DataFrame(out_rows, columns=cols)
-    df_out.to_csv(output_csv, index=False)
-    print(f'Augmented dataset salvo em {output_csv} com {len(df_out)} amostras')
 
+        # Converter para lista de arrays para performance
+        existing_features = cls_df[feature_cols].values
+        existing_metadata = cls_df[non_feature_cols].values # label e hand
+        
+        n_existing = len(existing_features)
+        
+        # Gerar novas amostras
+        for i in range(n_per_class):
+            # Escolher aleatoriamente uma amostra base (bootstrap)
+            idx = np.random.randint(0, n_existing)
+            base_feats = existing_features[idx]
+            base_meta = existing_metadata[idx] # [label, hand] se hand existir
+            
+            # Aplicar transformações
+            aug_feats = augment_sample(base_feats)
+            
+            # Construir nova linha
+            new_row = dict(zip(feature_cols, aug_feats))
+            
+            # Adicionar metadados (label, hand)
+            # Assume que non_feature_cols está alinhado com base_meta
+            for meta_col, meta_val in zip(non_feature_cols, base_meta):
+                new_row[meta_col] = meta_val
+            
+            final_data.append(new_row)
+
+    # Criar DataFrame final e salvar
+    df_out = pd.DataFrame(final_data)
+    
+    # Reordenar colunas para garantir consistência (label, hand, x_0...)
+    ordered_cols = [c for c in df.columns if c in df_out.columns]
+    df_out = df_out[ordered_cols]
+    
+    os.makedirs(os.path.dirname(output_csv) or '.', exist_ok=True)
+    df_out.to_csv(output_csv, index=False)
+    
+    print(f"\nConcluído!")
+    print(f"Dataset original: {len(df)} amostras")
+    print(f"Dataset aumentado: {len(df_out)} amostras")
+    print(f"Guardado em: {output_csv}")
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--input', default='hand_landmarks_dataset.csv')
-    parser.add_argument('--output', default='hand_landmarks_augmented.csv')
-    parser.add_argument('--classes', nargs='+', default=['C','D','E'])
-    parser.add_argument('--n_per_class', type=int, default=1000)
+    parser = argparse.ArgumentParser(description="Script para Data Augmentation de Landmarks ASL")
+    
+    parser.add_argument('--input', default='hand_landmarks_dataset.csv', help='CSV de entrada')
+    parser.add_argument('--output', default='hand_landmarks_augmented.csv', help='CSV de saída')
+    # nargs='*' permite passar 0 ou mais argumentos. Se 0, o script assume todas as classes.
+    parser.add_argument('--classes', nargs='*', help='Classes a aumentar (ex: J Z). Se vazio, aumenta todas.')
+    parser.add_argument('--n_per_class', type=int, default=500, help='Quantas amostras adicionar por classe')
+    
     args = parser.parse_args()
+    
     main(args.input, args.output, args.classes, args.n_per_class)

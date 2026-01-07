@@ -1,31 +1,39 @@
 """
-Teste mínimo de câmera: envia frames ao HandLandmarkExtractor e exibe landmarks.
+Teste de Câmara Profissional (Compatível com HandLandmarkExtractor do Professor)
+
+Funcionalidades:
+- Visualização em tempo real dos landmarks.
+- Cálculo de FPS (Performance).
+- Gravação de dados (CSV + Imagem) com feedback visual.
+- Interface gráfica (HUD) limpa.
 
 Teclas:
-- 'q': sair
-- 's': salvar CSV com landmarks detectados e imagem atual com overlay
+- 'q': Sair
+- 's': Salvar amostra atual (CSV e JPG)
 """
 
 import cv2
-from hand_landmark_extractor import HandLandmarkExtractor
-from typing import Optional
-import os
 import time
-from pprint import pprint
+import os
+import pandas as pd
+from hand_landmark_extractor import HandLandmarkExtractor
 
-# Constantes de janela e gravação
-WINDOW_NAME = "Hand Landmarks"
-CSV_OUTPUT_PATH = "1_landmarks.csv"
-IMG_OUTPUT_PATH = "1_landmarks.jpg"
+# --- Configurações ---
+WINDOW_NAME = "Teste de Camera - Deteccao de Maos"
+CSV_OUTPUT_PATH = "amostras_capturadas.csv"
+IMG_OUTPUT_DIR = "amostras_img"
 CAM_INDEX = 0
-FRAME_WIDTH = 640
-FRAME_HEIGHT = 480
+FRAME_WIDTH = 1280  # Tenta HD se a câmara suportar
+FRAME_HEIGHT = 720
 
+# Cores (BGR)
+COLOR_TEXT = (255, 255, 255)
+COLOR_BG_HUD = (0, 0, 0)
+COLOR_OK = (0, 255, 0)
+COLOR_WARN = (0, 165, 255)
 
-def run_minimal_camera_test() -> None:
-    """
-    Abre a câmera padrão, roda detecção de mãos, desenha keypoints e exibe.
-    """
+def run_camera_test():
+    # 1. Configurar Extrator (Usando parâmetros do professor)
     extractor = HandLandmarkExtractor(
         static_image_mode=False,
         max_num_hands=2,
@@ -34,64 +42,114 @@ def run_minimal_camera_test() -> None:
         suppress_warnings=True
     )
 
+    # 2. Inicializar Câmara
     cap = cv2.VideoCapture(CAM_INDEX)
     if not cap.isOpened():
-        print("Error: Could not open camera")
-        extractor.close()
+        print(f"ERRO: Não foi possível abrir a câmara {CAM_INDEX}.")
         return
 
-    # Define resolução
+    # Tentar definir resolução (se a câmara não suportar, usa o padrão)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
 
+    # Criar pasta para imagens se não existir
+    os.makedirs(IMG_OUTPUT_DIR, exist_ok=True)
+
+    print("--- Teste de Câmara Iniciado ---")
+    print(f"Saída de dados: {CSV_OUTPUT_PATH}")
+    print("Pressione 's' para salvar amostra, 'q' para sair.")
+
     prev_time = time.time()
+    save_feedback_timer = 0  # Contador para mostrar mensagem "Guardado"
+
     try:
         while True:
-            ok, frame = cap.read()
-            if not ok:
+            ret, frame = cap.read()
+            if not ret:
+                print("Falha ao capturar frame.")
                 break
 
-            # Espelhar para experiência mais natural
+            # Espelhar imagem (UX mais natural)
             frame = cv2.flip(frame, 1)
 
-            # Processar e desenhar landmarks
+            # 3. Processamento (Métodos do Professor)
+            # Retorna lista de dicionários
             hands_data = extractor.process_image_landmarks(frame)
-            if hands_data:
-                pprint(hands_data)
-                frame = extractor.draw_landmarks(frame, hands_data)
-                cv2.putText(frame, f"Hands: {len(hands_data)}", (10, 30),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            
+            # Desenha os pontos na imagem
+            frame = extractor.draw_landmarks(frame, hands_data)
 
-            # FPS (opcional)
+            # 4. Cálculos de Interface
             curr_time = time.time()
             fps = 1.0 / max(curr_time - prev_time, 1e-6)
             prev_time = curr_time
-            cv2.putText(frame, f"FPS: {fps:.1f}", (10, 55),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
 
-            # Overlay de ajuda
-            cv2.putText(frame, "q: sair  s: salvar CSV+IMG", (10, 80),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+            num_hands = len(hands_data)
+            status_color = COLOR_OK if num_hands > 0 else COLOR_WARN
 
-            cv2.imshow(WINDOW_NAME, frame)
+            # 5. Desenhar HUD (Heads-Up Display)
+            # Fundo semitransparente para texto
+            overlay = frame.copy()
+            cv2.rectangle(overlay, (0, 0), (350, 110), COLOR_BG_HUD, -1)
+            alpha = 0.6
+            frame = cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0)
+
+            # Texto informativo
+            cv2.putText(frame, f"FPS: {fps:.1f}", (10, 30), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, COLOR_TEXT, 2)
+            
+            cv2.putText(frame, f"Maos Detetadas: {num_hands}", (10, 60), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, status_color, 2)
+            
+            cv2.putText(frame, "[Q] Sair  [S] Salvar", (10, 90), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 200), 1)
+
+            # 6. Lógica de Gravação ('s')
             key = cv2.waitKey(1) & 0xFF
-            if key == ord('q'):
-                break
-            elif key == ord('s') and hands_data:
-                # Salva CSV (append) e imagem atual
-                df = extractor.hands_data_to_dataframe(hands_data)
-                try:
+            
+            if key == ord('s'):
+                if hands_data:
+                    # Método do professor para converter para DataFrame
+                    df = extractor.hands_data_to_dataframe(hands_data)
+                    
+                    # Adicionar timestamp ou ID se quiseres (opcional)
+                    df['timestamp'] = curr_time
+
+                    # Salvar CSV (Append mode)
                     file_exists = os.path.exists(CSV_OUTPUT_PATH)
                     df.to_csv(CSV_OUTPUT_PATH, mode='a', header=not file_exists, index=False)
-                    cv2.imwrite(IMG_OUTPUT_PATH, frame)
-                    print(f"Saved: {CSV_OUTPUT_PATH}, {IMG_OUTPUT_PATH}")
-                except Exception as e:
-                    print(f"Error saving to {CSV_OUTPUT_PATH} / {IMG_OUTPUT_PATH}: {e}")
-    finally:
-        cap.release()
-        extractor.close()
-        cv2.destroyAllWindows()
+                    
+                    # Salvar Imagem de referência
+                    img_name = f"sample_{int(curr_time)}.jpg"
+                    cv2.imwrite(os.path.join(IMG_OUTPUT_DIR, img_name), frame)
+                    
+                    print(f"Amostra guardada: {len(df)} linhas.")
+                    save_feedback_timer = 30 # Mostrar mensagem por 30 frames
+                else:
+                    print("Aviso: Nenhuma mão detetada para salvar.")
 
+            # Feedback Visual de Gravação
+            if save_feedback_timer > 0:
+                cv2.putText(frame, "DADOS GUARDADOS!", (width//2 - 100, height//2), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 0), 3)
+                save_feedback_timer -= 1
+
+            # Obter dimensões para centrar texto (opcional, usado acima)
+            height, width = frame.shape[:2]
+
+            cv2.imshow(WINDOW_NAME, frame)
+
+            if key == ord('q'):
+                break
+
+    except KeyboardInterrupt:
+        pass
+    finally:
+        # 7. Limpeza Segura
+        cap.release()
+        cv2.destroyAllWindows()
+        extractor.close()
+        print("Recursos libertados. Programa terminado.")
 
 if __name__ == "__main__":
-    run_minimal_camera_test()
+    run_camera_test()
