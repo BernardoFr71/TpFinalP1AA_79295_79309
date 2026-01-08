@@ -1,0 +1,10 @@
+# --- Joblib & Modelos ---
+# Ignorar o ficheiro principal do modelo
+*.joblib
+
+# Ignorar fragmentos de arrays (criados pelo joblib em modelos grandes)
+*.joblib_*
+
+# Ignorar a pasta onde estás a guardar os modelos (recomendado)
+pipelines/
+models/
