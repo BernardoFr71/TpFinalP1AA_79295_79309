@@ -45,6 +45,14 @@ python create_dataset.py
 
 ```
 
+# Caso de erros (ao executar o app e client):
+
+pip uninstall -y mediapipe protobuf opencv-python opencv-python-headless opencv-contrib-python
+pip install "mediapipe==0.10.9"
+pip install "opencv-python==4.8.0.74"
+
+---
+
 *Saída:* Cria o ficheiro `hand_landmarks_dataset.csv`.
 
 ### 2. Aumentar o Dataset (Opcional)
