@@ -1,5 +1,40 @@
+# Python environments
 venv/
 venv_310/
+
+# Byte-compiled / cache
 __pycache__/
+*.py[cod]
+*$py.class
+
+# Env
 .env
+
+# IDEs
 .idea/
+.vscode/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data (do not push large or sensitive datasets)
+data/
+parte1/data/
+FicheirosConsulta/**/population.csv
+
+# Models / artifacts
+models/
+parte1/models/
+*.joblib
+*.pkl
+*.model
+*.h5
+*.sav
+
+# Outputs
+*.csv
+*.zip
+
+# OS files
+.DS_Store
+Thumbs.db
