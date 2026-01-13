@@ -7,7 +7,7 @@ import time
 
 # --- CONFIGURAÇÃO ---
 OUTPUT_FILE = 'my_extra_data.csv'
-TARGET_LABEL = 'M'
+TARGET_LABEL = 'C'
 SAMPLES_TO_COLLECT = 200
 
 mp_hands = mp.solutions.hands
