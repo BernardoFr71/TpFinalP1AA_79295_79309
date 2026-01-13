@@ -2,3 +2,4 @@ venv/
 venv_310/
 __pycache__/
 .env
+.idea/

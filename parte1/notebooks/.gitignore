@@ -8,3 +8,4 @@
 # Ignorar a pasta onde estás a guardar os modelos (recomendado)
 pipelines/
 models/
+.idea
