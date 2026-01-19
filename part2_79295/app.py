@@ -30,7 +30,7 @@ except Exception as e:
     model, scaler, encoder = None, None, None
 
 # --- 2. Rota de Previsão ---
-@app.route('/predict', methods=['POST'])
+@app.route('/predict', methods=['POST']) # Cria um endereço web (endpoint) /predict, post porque o cliente vai enviar dados (as coordenadas da mão) para o servidor processar.
 def predict():
     if not model or not scaler or not encoder:
         return jsonify({'error': 'Modelos não estão carregados no servidor.'}), 500
