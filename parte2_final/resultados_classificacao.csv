@@ -1,0 +1,6 @@
+Modelo,Accuracy,Inference_Time_ms,Best_Params
+KNN,1.0,1.0008955001831055,"{'n_neighbors': 3, 'weights': 'distance'}"
+RandomForest,1.0,2.484753131866455,"{'max_depth': None, 'n_estimators': 100}"
+DecisionTree,0.9940041710114703,0.1926589012145996,{'max_depth': None}
+SVM,1.0,0.3548765182495117,"{'C': 10, 'kernel': 'rbf'}"
+MLP (Neural Net),1.0,0.13031005859375,"{'activation': 'relu', 'hidden_layer_sizes': (128,)}"
