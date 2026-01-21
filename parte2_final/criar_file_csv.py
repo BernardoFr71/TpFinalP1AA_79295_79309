@@ -7,7 +7,7 @@ def build_landmark_database(source_directory: str, destination_csv: str):
     """
     Percorre a diretoria de imagens, extrai coordenadas da mão e consolida num ficheiro CSV.
     """
-    
+
     # Inicialização do processador MediaPipe
     # Mantive static_image_mode=True para maior precisão em fotos isoladas
     mp_processor = HandLandmarkExtractor(
@@ -71,6 +71,6 @@ def build_landmark_database(source_directory: str, destination_csv: str):
 if __name__ == "__main__":
     # Ajustado conforme o teu print (dataset/SignAlphaSet)
     ROOT_DIR = os.path.join("dataset", "SignAlphaSet")
-    TARGET_FILE = "asl_landmarks_dataset.csv"
+    TARGET_FILE = "landmarks_dataset.csv"
     
     build_landmark_database(ROOT_DIR, TARGET_FILE)
