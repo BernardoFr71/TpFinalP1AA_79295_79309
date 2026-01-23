@@ -2,3 +2,4 @@ __pycache__/
 SignAlphaSet/
 .ipynb_checkpoints/
 *.csv
+dataset/
