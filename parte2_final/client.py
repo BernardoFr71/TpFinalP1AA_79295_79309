@@ -48,7 +48,7 @@ class RealTimeASLApp:
         cam_stream = cv2.VideoCapture(0)
         cam_stream.set(cv2.CAP_PROP_FPS, 30)
         
-        print("🎥 Transmissão iniciada. Pressiona 'q' para encerrar.")
+        print("Transmissão iniciada. Pressiona 'q' para encerrar.")
         
         frame_counter = 0
         
