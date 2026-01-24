@@ -3,6 +3,8 @@ Hand Landmark Extractor for MediaPipe
 
 This module provides a class to extract and process hand landmark coordinates
 from MediaPipe hand detection results.
+
+Extrair e processar as coordenadas da mão a partir dos resultados de deteção de mãos do MediaPipe.
 """
 
 import cv2
