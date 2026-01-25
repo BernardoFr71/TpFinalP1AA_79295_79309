@@ -68,7 +68,7 @@ class RealTimeASLApp:
                 
                 if landmarks_result:
                     # 2. Prepara os dados (Converte para DataFrame e depois Dicionário)
-                    # Nota: Passamos landmarks_result[0] numa lista conforme a classe exige
+                    # Nota: Passo landmarks_result[0] numa lista conforme a classe exige
                     df_features = self.hand_processor.hands_data_to_dataframe([landmarks_result[0]])
                     json_body = df_features.iloc[0].to_dict()
                     
@@ -79,7 +79,7 @@ class RealTimeASLApp:
             # --- Renderização da Interface (UI) ---
             
             # Caixa de fundo preta
-            cv2.rectangle(frame, (5, 15), (380, 65), (20, 20, 20), -1)
+            cv2.rectangle(frame, (5, 15), (380, 65), (20, 20, 20), -1) # serve como fundo do texto
             
             # Texto com a previsão
             display_text = f"Gesto: {self.current_label} ({self.confidence_score:.1%})"
