@@ -9,10 +9,9 @@ class RealTimeASLApp:
     def __init__(self, endpoint="http://localhost:5000/predict"):
         self.server_url = endpoint
         
-        # Inicializa o processador de MediaPipe (Video Mode = True para fluidez)
+        """ Inicializa o processador de MediaPipe (Video Mode = True para fluidez) """
         self.hand_processor = HandLandmarkExtractor(static_image_mode=False, max_num_hands=1)
         
-        # Variáveis de Estado da Aplicação
         self.current_label = "A aguardar..."
         self.confidence_score = 0.0
         self.is_request_active = False
@@ -23,7 +22,7 @@ class RealTimeASLApp:
         """
         self.is_request_active = True
         try:
-            # Envio do POST request
+            """ Envio do POST request """
             api_response = requests.post(
                 self.server_url, 
                 json=input_data, 
@@ -32,19 +31,17 @@ class RealTimeASLApp:
             
             if api_response.status_code == 200:
                 result_json = api_response.json()
-                # Atualiza as variáveis que aparecem no ecrã
                 self.current_label = result_json.get('letter', '?')
                 self.confidence_score = result_json.get('confidence', 0.0)
                 
         except Exception:
-            # Falhas na conexão são ignoradas para não parar o vídeo
+            """ Falhas na conexão são ignoradas para não parar o vídeo """
             pass
         
-        # Liberta a flag para permitir novos pedidos
         self.is_request_active = False
 
     def start_capture(self):
-        # Configuração da Webcam
+        """ Configuração da Webcam """
         cam_stream = cv2.VideoCapture(0)
         cam_stream.set(cv2.CAP_PROP_FPS, 30)
         
@@ -59,29 +56,26 @@ class RealTimeASLApp:
             
             frame_counter += 1
             
-            # Lógica de Throttling: Processa apenas 1 em cada 5 frames
-            # E apenas se não houver um pedido HTTP já em andamento
+            """ Processa apenas 1 em cada 5 frames """   
             if frame_counter % 5 == 0 and not self.is_request_active:
                 
-                # 1. Extração de Features
+                """ 1. Extração de Features """
                 landmarks_result = self.hand_processor.process_image_landmarks(frame)
                 
                 if landmarks_result:
-                    # 2. Prepara os dados (Converte para DataFrame e depois Dicionário)
-                    # Nota: Passo landmarks_result[0] numa lista conforme a classe exige
+                    """ 2. Prepara os dados (Converte para DataFrame e depois Dicionário) """
+                    """ Nota: Passo landmarks_result[0] numa lista conforme a classe exige """
                     df_features = self.hand_processor.hands_data_to_dataframe([landmarks_result[0]])
                     json_body = df_features.iloc[0].to_dict()
                     
-                    # 3. Threading (Processamento em segundo plano)
+                    """ 3. Threading (Processamento em segundo plano) """
                     bg_thread = threading.Thread(target=self._send_inference_request, args=(json_body,))
                     bg_thread.start()
             
-            # --- Renderização da Interface (UI) ---
-            
-            # Caixa de fundo preta
+            """ --- Renderização da Interface (UI) --- """
+
             cv2.rectangle(frame, (5, 15), (380, 65), (20, 20, 20), -1) # serve como fundo do texto
             
-            # Texto com a previsão
             display_text = f"Gesto: {self.current_label} ({self.confidence_score:.1%})"
             color = (0, 255, 0) if self.confidence_score > 0.5 else (0, 165, 255) # Verde se > 50%, Laranja se <
             
@@ -90,7 +84,6 @@ class RealTimeASLApp:
             
             cv2.imshow('ASL Real-Time Detector', frame)
             
-            # Tecla de saída
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
                 
