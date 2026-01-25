@@ -18,7 +18,7 @@ with open('best_model_asl.pkl', 'rb') as f:
 with open('hand_encoder.pkl', 'rb') as f:
     hand_encoder = pickle.load(f)
 
-# Carregar o Scaler, isto garante que os números da webcam estão na mesma escala do treino
+# Carregar o Scaler, isto garante que os números da webcam estão na mesma escala do treino ou seja normalizados
 with open('scaler.pkl', 'rb') as f:
     feature_scaler = pickle.load(f)
 
@@ -29,14 +29,14 @@ with open('scaler.pkl', 'rb') as f:
 def get_inference():
     try:
         # Receber o payload (dados JSON)
-        input_data = request.get_json()
+        input_data = request.get_json() 
         
         if not input_data:
             return jsonify({'error': 'Nenhum dado recebido'}), 400
             
         # Converter para DataFrame (Tabela de 1 linha)
         # O pandas organiza automaticamente as colunas pelos nomes
-        df_input = pd.DataFrame([input_data])
+        df_input = pd.DataFrame([input_data]) 
         
         # PASSO A: Codificar a mão (Se a coluna existir)
         # Transforma 'Left'/'Right' em 0 ou 1
@@ -53,7 +53,7 @@ def get_inference():
         
         # Calcular a confiança (0 a 1)
         probs = classifier.predict_proba(X_final)[0]
-        score = float(np.max(probs))
+        score = float(np.max(probs)) 
         
         # Retornar resposta ao cliente
         return jsonify({
