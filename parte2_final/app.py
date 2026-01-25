@@ -4,70 +4,64 @@ import pickle
 import numpy as np
 import pandas as pd
 
-# Inicialização do servidor
+""" Inicialização do servidor """
 server = Flask(__name__)
 CORS(server)
 
-# --- 1. CARREGAMENTO DOS ARTEFACTOS (CÉREBRO, TRADUTOR E SCALER) ---
+""" --- 1. CARREGAMENTO DOS ARTEFACTOS (CÉREBRO, TRADUTOR E SCALER) --- 
+        Carregar o Modelo (O Cérebro)
+        Carregar o Encoder da Mão (O Tradutor de 'Left'/'Right')
+        Carregar o Scaler (Normalizador dos dados) """
 
-# Carregar o Modelo (O Cérebro)
 with open('best_model_asl.pkl', 'rb') as f:
     classifier = pickle.load(f)
 
-# Carregar o Encoder da Mão (O Tradutor de 'Left'/'Right')
 with open('hand_encoder.pkl', 'rb') as f:
     hand_encoder = pickle.load(f)
 
-# Carregar o Scaler, isto garante que os números da webcam estão na mesma escala do treino ou seja normalizados
 with open('scaler.pkl', 'rb') as f:
     feature_scaler = pickle.load(f)
 
 
-# --- 2. DEFINIÇÃO DAS ROTAS ---
+""" --- 2. DEFINIÇÃO DAS ROTAS --- """
 
 @server.route('/predict', methods=['POST'])
 def get_inference():
     try:
-        # Receber o payload (dados JSON)
+        """ Receção dos dados do cliente """
         input_data = request.get_json() 
         
         if not input_data:
             return jsonify({'error': 'Nenhum dado recebido'}), 400
             
-        # Converter para DataFrame (Tabela de 1 linha)
-        # O pandas organiza automaticamente as colunas pelos nomes
+        """ Converter para DataFrame (Tabela de 1 linha) """
         df_input = pd.DataFrame([input_data]) 
         
-        # PASSO A: Codificar a mão (Se a coluna existir)
-        # Transforma 'Left'/'Right' em 0 ou 1
+        """ Transforma 'Left'/'Right' em 0 ou 1 """
         if 'hand' in df_input.columns:
             df_input['hand'] = hand_encoder.transform(df_input['hand'])
             
-        # PASSO B: Normalizar os dados (O ajuste crítico)
-        # Aplica a mesma matemática usada no treino (StandardScaler)
+        """ Aplica a mesma matemática usada no treino (StandardScaler) """
         X_final = feature_scaler.transform(df_input)
         
-        # PASSO C: Previsão
-        # O modelo olha para os dados normalizados e decide a letra
+        """ O modelo olha para os dados normalizados e decide a letra """
         predicted_letter = classifier.predict(X_final)[0]
         
-        # Calcular a confiança (0 a 1)
+        """ Calcular a confiança (0 a 1) """
         probs = classifier.predict_proba(X_final)[0]
         score = float(np.max(probs)) 
         
-        # Retornar resposta ao cliente
         return jsonify({
             'letter': str(predicted_letter),
             'confidence': score
         })
         
     except Exception as error:
-        # Se algo correr mal, devolve o erro
         return jsonify({'error': str(error)}), 500
 
 @server.route('/status', methods=['GET'])
 def check_status():
-    """Rota simples para ver se o servidor está vivo."""
+    """Rota simples para ver se o servidor está vivo"""
     return jsonify({
         'system': 'online', 
         'ready_to_predict': True
